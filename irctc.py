@@ -32,3 +32,13 @@ def from_to(from1,to):
         class1.send_keys(Keys.DOWN)
 
 from_to(from1,to)
+
+
+#for i in range(10):
+#    _date.send_keys(Keys.BACKSPACE)
+#_date.send_keys(date_of_journey)
+#_date.send_keys(Keys.TAB,Keys.ARROW_DOWN,Keys.ARROW_DOWN,Keys.ARROW_DOWN,Keys.ARROW_DOWN,Keys.ARROW_DOWN,Keys.ARROW_DOWN,Keys.ARROW_DOWN,Keys.ARROW_DOWN,Keys.ARROW_DOWN)
+#_date.send_keys(Keys.RETURN)
+#time.sleep(3)
+#check_avail=browser.find_element_by_xpath('//*[@id="check-availability"]')
+#check_avail.click()
