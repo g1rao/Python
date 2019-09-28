@@ -1,37 +1,80 @@
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
+import selenium.webdriver.support.ui as ui
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import Select, WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 import time, datetime
+
 username="g1rao18"
 password="ghg756"
-from1="PALASA - PSA"
-to="SECUNDERABAD JN - SC"
-date=""
-browser = webdriver.Chrome("C:\Users\Jeevan\Downloads\chromedriver_win32\chromedriver.exe")
-def login(username,password):
+origin="PALASA - PSA"
+destination="SECUNDERABAD JN - SC"
+_date="29-09-2019"
+name = 'Jeevan Rao T'
+age = '24'
+
+browser = webdriver.Chrome(r"C:\Users\jt250054\Documents\chromedriver_win32\chromedriver.exe")
+
+def waitFor(x_path=None,id=None):
+        timeout = 15
+        wait = ui.WebDriverWait(browser,timeout)
+        if x_path:
+                wait.until(lambda browser: browser.find_element_by_xpath(x_path))
+        else:
+                wait.until(lambda browser: browser.find_element_by_id(id))
+
+def login(browser,username,password,origin,destination,_date):
         browser.get("https://www.irctc.co.in/nget/train-search")
+        browser.maximize_window()
+        signin_sidepanel_xpath = "/html/body/app-root/app-home/div[1]/app-header/div[1]/div[3]/a/i"
+        waitFor(signin_sidepanel_xpath)
+        signin_sidepanel_button = browser.find_element_by_xpath(signin_sidepanel_xpath).click()
+        signin_button_1 = browser.find_element_by_xpath('//*[@id="slide-menu"]/p-sidebar/div/nav/div/label/button').click()
+        waitFor(None,'userId')
+        input_username = browser.find_element_by_id('userId')
+        input_username.send_keys(username)
+        input_password = browser.find_element_by_id("pwd")
+        input_password.send_keys(password)
+        return browser
 
 
-        test = browser.find_element_by_xpath('/html/body/app-root/app-home/div/div/app-main-page/div[2]/div/div[1]/div/div/div[1]/div/app-jp-input/div[3]/form/div[2]/div[2]/p-autocomplete/span/input')
-        test.send_keys("palasa")
-        time.sleep(3)
-        signin=browser.find_element_by_xpath('/html/body/app-root/app-home/app-header/div[2]/div[2]/div[1]/a[1]')
-        signin.send_keys(Keys.RETURN)
+def search_train(browser,origin,destination,_date):
+        logout_xpath = '//*[@id="slide-menu"]/p-sidebar/div/nav/div/label/a/span/b'
+        waitFor(logout_xpath) 
+        origin_xpath = '//*[@id="origin"]/span/input'
+        #waitFor(origin_xpath)
+        origin_object = browser.find_element_by_xpath(origin_xpath)
+        origin_object.send_keys(origin)
+        destination_object = browser.find_element_by_xpath('//*[@id="destination"]/span/input')
+        destination_object.send_keys(destination)
+        date_object = browser.find_element_by_xpath('//*[@id="divMain"]/div/app-main-page/div[1]/div/div[1]/div/div/div[1]/div/app-jp-input/div[3]/form/div[3]/p-calendar/span/input')            
+        [date_object.send_keys(Keys.BACKSPACE) for _ in range(10)]
+        date_object.send_keys(_date)        
+        browser.find_element_by_xpath('//*[@id="divMain"]/div/app-main-page/div[1]/div/div[1]/div/div/div[1]/div/app-jp-input/div[3]/form/div[7]/button').submit()
 
-#login(username,password)
-def from_to(from1,to):
-        browser.get("https://www.irctc.co.in/nget/train-search")
-        username = browser.find_element_by_xpath('/html/body/app-root/app-home/div/div/app-main-page/div[2]/div/div[1]/div/div/div[1]/div/app-jp-input/div[3]/form/div[2]/div[2]/p-autocomplete/span/input')
-        username.send_keys(from1)
-        password = browser.find_element_by_css_selector("#destination > span:nth-child(1) > input:nth-child(1)")
-        password.send_keys(to)
-        date=browser.find_element_by_css_selector("input.ng-tns-c14-5")
-        for i in range(10):
-                date.send_keys(Keys.BACKSPACE)
-        date.send_keys("26-06-2018")
-        class1=browser.find_element_by_css_xpath("/html/body/app-root/app-home/div/div/app-main-page/div[2]/div/div[1]/div/div/div[1]/div/app-jp-input/div[3]/form/div[4]/p-dropdown/div/label")
-        class1.send_keys(Keys.DOWN)
+        tatkal_lnk_object = '//*[@id="divMain"]/div/app-train-list/div/div[5]/div/div[2]/div[1]/div[2]/div[2]/div/div[3]/div/div[2]/p-dropdown/div/label'
+        waitFor(tatkal_lnk_object)
+        tatkal_object = '//*[@id="divMain"]/div/app-train-list/div/div[5]/div/div[2]/div[1]/div[2]/div[2]/div/div[3]/div/div[2]/p-dropdown/div/div[4]/div/ul/li[5]/span'
+        browser.find_element_by_xpath(tatkal_lnk_object).click()
+        browser.find_element_by_xpath(tatkal_object).click()
+        falak_train = '//*[@id="check-availability"]'
+        waitFor(falak_train)
+        browser.find_element_by_id('check-availability').click()
+        #_________________BookNowCode to be added_____________________________#
 
-from_to(from1,to)
+def fill_details(browser,name,age):
+        name_object = browser.find_element_by_id("psgn-name")
+        name_object.send_keys(name)
+        age_object = browser.find_element_by_xpath('//*[@id="divMain"]/div/app-passenger-input/div[5]/form/div/div[1]/div[3]/div[1]/div/div[2]/app-passenger/div/div[1]/div[2]/input')
+        age_object.send_keys(age)
+        gender_object = browser.find_element_by_xpath('//*[@id="divMain"]/div/app-passenger-input/div[5]/form/div/div[1]/div[3]/div[1]/div/div[2]/app-passenger/div/div[1]/div[3]/select/option[2]')
+        gender_object.click()
+
+
+browser = login(browser,username,password,origin,destination,_date)
+search_train(browser,origin,destination,_date)
+fill_details(browser,name,age)
 
 
 #for i in range(10):
