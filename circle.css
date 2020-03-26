@@ -1,0 +1,17 @@
+.circle {
+    position:relative;
+    width:15%;
+    height:0;
+    padding-bottom:15%;
+    background:black;
+    display:inline-block;
+    border-radius:100%;
+}
+.circle > span {
+    position:absolute;
+    color:white;
+    left:50%;
+    top:50%;
+    -webkit-transform:translate3d(-50%,-50%,0);
+    font-size:3vw;
+}
