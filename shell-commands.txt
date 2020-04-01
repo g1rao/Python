@@ -1,0 +1,4 @@
+# get command output using pid
+tail -f /proc/<pid>/fd/1
+strace -e trace=open -p 22254 -s 80 -o output.txt
+screen -S PID
