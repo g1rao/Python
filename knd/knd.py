@@ -11,7 +11,7 @@ import logging
 from traceback import format_exc
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
-from progress_bar import ProgressBar
+from .progress_bar import ProgressBar
 
 class KND:
     """ Kubernetes NGINX Deployer """

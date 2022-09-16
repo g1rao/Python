@@ -22,7 +22,7 @@ setuptools.setup(
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
-    install_requires=["halo", "tqdm", "yaml", "kubernetes"],
+    install_requires=["halo", "tqdm", "PyYAML", "kubernetes"],
     packages=setuptools.find_packages(),
     python_requires=">=3.6",
     entry_points={
