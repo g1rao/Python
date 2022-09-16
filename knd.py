@@ -11,8 +11,7 @@ import logging
 from traceback import format_exc
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
-
-DEPLOYMENT_NAME = "nginx-deployment"
+from progress_bar import ProgressBar
 
 class KND:
     """ Kubernetes NGINX Deployer """
@@ -113,6 +112,7 @@ class KND:
             logging.error(E)
             logging.error(f"Failed to retrive replica count for the deployment: {deployment_name}")
 
+    @ProgressBar.progress_bar()
     def scale_replicas(self, k8s_api_client, deployment_name, deployment_namespace, replicas):
         """ Scales up/down with number of replicas """
         try:
@@ -125,7 +125,6 @@ class KND:
             while True:
                 response = k8s_api_client.read_namespaced_deployment_status(name=deployment_name, namespace=deployment_namespace)
                 if response.status.available_replicas != replicas:
-                    print("Waiting for Deployment to become ready...")
                     time.sleep(5)
                 else:
                     break

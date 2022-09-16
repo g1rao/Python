@@ -9,7 +9,7 @@ __author__ = "Jeevan Rao Talagana"
 import sys
 import logging
 from argparse import ArgumentParser, HelpFormatter
-from .knd import KND
+from knd import KND
 
 
 def main():
