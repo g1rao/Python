@@ -27,8 +27,7 @@ class ProgressBar:
             def _func(*args, **kwargs):
                 with futures.ThreadPoolExecutor(max_workers=1) as _pool:
                     pool_job = _pool.submit(func, *args, **kwargs)
-                    create_progress_bar(pool_job, args[0].replicas, scale)
+                    create_progress_bar(pool_job, args[0].replicas*5, scale)
                 return pool_job.result()
-
             return _func
         return _decorator_func

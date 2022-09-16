@@ -15,11 +15,11 @@ from progress_bar import ProgressBar
 
 class KND:
     """ Kubernetes NGINX Deployer """
-    def __init__(self, deployment_file, deployment_name, nginx_version, replicas, recreate=False, verbose=False):
+    def __init__(self, deployment_file, deployment_name, nginx_version, replicas, force_recreate=False, verbose=False):
         self.deployment_file = deployment_file
         self.deployment_name = deployment_name
         self.deployment_namespace = "default"
-        self.recreate = recreate
+        self.force_recreate = force_recreate
         self.nginx_version = nginx_version
         self.replicas = replicas
         self.port = 80
@@ -88,14 +88,9 @@ class KND:
             deployment_response = k8s_api_client.create_namespaced_deployment(
                         body=deployment, namespace=deployment_namespace)
 
-            while True:
-                response = k8s_api_client.read_namespaced_deployment_status(name=deployment_name, namespace=deployment_namespace)
-                if response.status.available_replicas != replicas:
-                    print("Waiting for Deployment to become ready...")
-                    time.sleep(5)
-                else:
-                    break
-            logging.info(f"Deployment {deployment_response.metadata.name} has been created.")
+            logging.info(f"Deployment {deployment_name} is being created...")
+            self.cluster_status(k8s_api_client, deployment_name, replicas, deployment_namespace="default")
+            logging.info(f"Deployment {deployment_name} has been created and ready to use...")
 
         except Exception as E:
             logging.debug(format_exc())
@@ -112,23 +107,19 @@ class KND:
             logging.error(E)
             logging.error(f"Failed to retrive replica count for the deployment: {deployment_name}")
 
-    @ProgressBar.progress_bar()
-    def scale_replicas(self, k8s_api_client, deployment_name, deployment_namespace, replicas):
+    def scale_replicas(self, k8s_api_client, deployment_name, replicas, deployment_namespace="default"):
         """ Scales up/down with number of replicas """
         try:
             if self.get_replica_count(k8s_api_client, deployment_name) == replicas:
-                logging.info(f"Already scaled to {replicas}")
+                logging.info(f"Deployment {deployment_name} exists and already scaled to {replicas}")
                 return
             api_response = k8s_api_client.patch_namespaced_deployment_scale(deployment_name,
                                                 deployment_namespace,
                                                 {'spec': {'replicas': replicas}})
-            while True:
-                response = k8s_api_client.read_namespaced_deployment_status(name=deployment_name, namespace=deployment_namespace)
-                if response.status.available_replicas != replicas:
-                    time.sleep(5)
-                else:
-                    break
-            logging.info(api_response)
+            logging.info(f"Deployment is being scaled to {replicas}")
+            self.cluster_status(k8s_api_client, deployment_name, replicas, deployment_namespace="default")
+            logging.debug(api_response)
+            logging.info(f"Deployment is scaled to {replicas}")
         except Exception as E:
             logging.debug(format_exc())
             logging.error(E)
@@ -146,18 +137,16 @@ class KND:
 
     def delete_deployment(self, k8s_api_client, deployment_name, deployment_namespace="default"):
         """ Delete deployment """
-        try:
-            deployment = k8s_api_client.delete_namespaced_deployment(
-                name=deployment_name,
-                namespace=deployment_namespace,
-                body=client.V1DeleteOptions(propagation_policy="Foreground", grace_period_seconds=5),
-                )
-            logging.info(f"Deployment {deployment_name} has been deleted.")
-        except ApiException as E:
-            logging.debug(format_exc())
-            logging.error(E)
-            logging.error(f"Failed to delete deployment: {deployment_name}")
-        return False
+        while True:
+            try:
+                deployment = k8s_api_client.delete_namespaced_deployment(
+                    name=deployment_name,
+                    namespace=deployment_namespace,
+                    body=client.V1DeleteOptions(propagation_policy="Foreground", grace_period_seconds=5),
+                    )
+            except ApiException:
+                break
+        logging.info(f"Deployment {deployment_name} has been deleted.")
 
     def update_deployment(self, k8s_api_client, nginx_deployment, nginx_version, deployment_name, deployment_namespace="default"):
         """ Updates image of specific deployment"""
@@ -172,18 +161,32 @@ class KND:
             logging.error(E)
             logging.error("Failed to update nginx version")
 
+    @ProgressBar.progress_bar()
+    def cluster_status(self, k8s_api_client, deployment_name, replicas, deployment_namespace="default"):
+        try:
+            while True:
+                response = k8s_api_client.read_namespaced_deployment_status(name=deployment_name, namespace=deployment_namespace)
+                if response.status.available_replicas != replicas:
+                    time.sleep(5)
+                else:
+                    break
+        except Exception as E:
+            logging.debug(format_exc())
+            logging.error(E)
+            logging.error("Failed to get deployment status")
 
     def deploy_nginx(self):
         """ Driver method and invocation starts from here. """
         try:
-            deploy = self.check_deployment(self.k8s_api_client, self.deployment_name)
-            if self.recreate and deploy:
+            deployment_availability = self.check_deployment(self.k8s_api_client, self.deployment_name)
+            nginx_deployment = self.get_deployment_template(self.deployment_file, self.image, self.nginx_version, self.port, self.deployment_name)
+            if self.force_recreate and deployment_availability:
                 self.delete_deployment(self.k8s_api_client, self.deployment_name)
-            if not deploy:
-                nginx_deployment = self.get_deployment_template(self.deployment_file, self.image, self.nginx_version, self.port, self.deployment_name)
+                self.create_deployment(self.k8s_api_client, nginx_deployment, self.deployment_name, self.deployment_namespace, self.replicas)
+            elif not deployment_availability:                
                 self.create_deployment(self.k8s_api_client, nginx_deployment, self.deployment_name, self.deployment_namespace, self.replicas)
             else:
-                self.scale_replicas(self.k8s_api_client, self.deployment_name, self.deployment_namespace, self.replicas)
+                self.scale_replicas(self.k8s_api_client, self.deployment_name, self.replicas)
 
         except Exception as E:
             logging.debug(format_exc())
