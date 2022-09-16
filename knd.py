@@ -160,6 +160,20 @@ class KND:
             logging.error(f"Failed to delete deployment: {deployment_name}")
         return False
 
+    def update_deployment(self, k8s_api_client, nginx_deployment, nginx_version, deployment_name, deployment_namespace="default"):
+        """ Updates image of specific deployment"""
+        try:
+            nginx_deployment.spec.template.spec.containers[0].image =f"nginx:{nginx_version}"
+            update_resp = k8s_api_client.patch_namespaced_deployment(
+                name=deployment_name, namespace=deployment_namespace, body=nginx_deployment)
+            logging.info(f"Deployment image is updated to nginx:{nginx_version}")
+
+        except ApiException as E:
+            logging.debug(format_exc())
+            logging.error(E)
+            logging.error("Failed to update nginx version")
+
+
     def deploy_nginx(self):
         """ Driver method and invocation starts from here. """
         try:
