@@ -11,15 +11,16 @@ import logging
 from traceback import format_exc
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
-from .progress_bar import ProgressBar
+from progress_bar import ProgressBar
 
 class KND:
     """ Kubernetes NGINX Deployer """
-    def __init__(self, deployment_file, deployment_name, nginx_version, replicas, force_recreate=False, verbose=False):
-        self.deployment_file = deployment_file
+    def __init__(self, deployment_name, nginx_version, replicas, force_recreate=False, listing=False, verbose=False):
+        self.deployment_file = None  # As per requirement cli option commented
         self.deployment_name = deployment_name
         self.deployment_namespace = "default"
         self.force_recreate = force_recreate
+        self.listing = listing
         self.nginx_version = nginx_version
         self.replicas = replicas
         self.port = 80
@@ -34,17 +35,12 @@ class KND:
         self.k8s_api_client = client.AppsV1Api()
         if not self.nginx_version: self.nginx_version = "latest"
 
-
-    def validate_nginx_deployment_yaml(self, deployment_file):
-        """ Validates given nginx deployment yaml"""
-        ##### not validating the yaml file as mentioned not to validate in problem statement
-        return True
-
-    def get_deployment_template(self, deployment_file, image, nginx_version, port, deployment_name):
+    def get_deployment_template(self, image, nginx_version, port, deployment_name):
         """ Generates nginx deployment template"""
         try:
-            if deployment_file and os.path.isfile(deployment_file):
-                with open(deployment_file) as _nginx_data:
+            # deployment_file is None, as we are not focussing on yaml based deployment
+            if self.deployment_file and os.path.isfile(self.deployment_file):
+                with open(self.deployment_file) as _nginx_data:
                     nginx_deployment = yaml.safe_load(_nginx_data)
             else:
                 nginx_deployment = self.create_default_nginx_deployment(image, nginx_version, port, deployment_name)
@@ -137,6 +133,7 @@ class KND:
 
     def delete_deployment(self, k8s_api_client, deployment_name, deployment_namespace="default"):
         """ Delete deployment """
+        logging.info(f"Deployment {deployment_name} is being deleted.")
         while True:
             try:
                 deployment = k8s_api_client.delete_namespaced_deployment(
@@ -148,12 +145,15 @@ class KND:
                 break
         logging.info(f"Deployment {deployment_name} has been deleted.")
 
-    def update_deployment(self, k8s_api_client, nginx_deployment, nginx_version, deployment_name, deployment_namespace="default"):
+    def update_deployment(self, k8s_api_client, nginx_deployment, nginx_version, deployment_name, replicas, deployment_namespace="default"):
         """ Updates image of specific deployment"""
         try:
+            logging.info(f"Updating container image to nginx:{self.nginx_version}")
             nginx_deployment.spec.template.spec.containers[0].image =f"nginx:{nginx_version}"
             update_resp = k8s_api_client.patch_namespaced_deployment(
                 name=deployment_name, namespace=deployment_namespace, body=nginx_deployment)
+            logging.info(f"Deployment is being updated to nginx:{nginx_version}")
+            self.cluster_status(k8s_api_client, deployment_name, replicas, deployment_namespace="default")
             logging.info(f"Deployment image is updated to nginx:{nginx_version}")
 
         except ApiException as E:
@@ -175,18 +175,43 @@ class KND:
             logging.error(E)
             logging.error("Failed to get deployment status")
 
+    def list_deployments(self, k8s_api_client, deployment_namespace="default"):
+        """ Lists all deployments """
+        deployment_list = k8s_api_client.list_namespaced_deployment(namespace="default")
+        print(f"{'DeploymentName':<30}{'Image':<30}{'Replicas':<30}")
+        deployments = {}
+        for item in deployment_list.items:
+            if item.spec.selector.match_labels['app'] == "nginx":
+                deployments.update({item.metadata.name: [item.spec.template.spec.containers[0].image, item.status.available_replicas]})
+                print(f"{item.metadata.name:<30}{item.spec.template.spec.containers[0].image:<30}{item.status.available_replicas!s:<30}")
+        return deployments
+
     def deploy_nginx(self):
         """ Driver method and invocation starts from here. """
         try:
-            deployment_availability = self.check_deployment(self.k8s_api_client, self.deployment_name)
-            nginx_deployment = self.get_deployment_template(self.deployment_file, self.image, self.nginx_version, self.port, self.deployment_name)
-            if self.force_recreate and deployment_availability:
-                self.delete_deployment(self.k8s_api_client, self.deployment_name)
-                self.create_deployment(self.k8s_api_client, nginx_deployment, self.deployment_name, self.deployment_namespace, self.replicas)
-            elif not deployment_availability:                
-                self.create_deployment(self.k8s_api_client, nginx_deployment, self.deployment_name, self.deployment_namespace, self.replicas)
+            all_deployments = self.list_deployments(self.k8s_api_client)
+            if self.listing:
+                return
+            nginx_deployment = self.get_deployment_template(self.image, self.nginx_version, self.port, self.deployment_name)
+            if self.deployment_name in all_deployments:
+                logging.info(f"{self.deployment_name} is already exists.")
+                if all_deployments[self.deployment_name][0] != f"nginx:{self.nginx_version}":
+                    self.update_deployment(self.k8s_api_client, nginx_deployment, self.nginx_version, self.deployment_name, self.replicas)
+                    self.list_deployments(self.k8s_api_client)
+                if all_deployments[self.deployment_name][1] != self.replicas:
+                    self.scale_replicas(self.k8s_api_client, self.deployment_name, self.replicas)
+                    self.list_deployments(self.k8s_api_client)
+
+                if (all_deployments[self.deployment_name][0] == f"nginx:{self.nginx_version}" and all_deployments[self.deployment_name][1] == self.replicas) and not self.force_recreate:
+                    logging.info("No changes made to cluster...")
+                if self.force_recreate:
+                    self.delete_deployment(self.k8s_api_client, self.deployment_name)
+                    self.list_deployments(self.k8s_api_client)
+                    self.create_deployment(self.k8s_api_client, nginx_deployment, self.deployment_name, self.deployment_namespace, self.replicas)
+                    self.list_deployments(self.k8s_api_client)
             else:
-                self.scale_replicas(self.k8s_api_client, self.deployment_name, self.replicas)
+                self.create_deployment(self.k8s_api_client, nginx_deployment, self.deployment_name, self.deployment_namespace, self.replicas)
+                self.list_deployments(self.k8s_api_client)
 
         except Exception as E:
             logging.debug(format_exc())

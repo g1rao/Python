@@ -12,6 +12,7 @@ setuptools.setup(
                 "A CLI progress bar is provided to indicate the deployment/scaling progress."
                 "The application can be deployed with a configurable number of replicas."),
     long_description=long_description,
+    include_package_data=True,
     long_description_content_type="text/markdown",
     url="https://github.com/g1rao/Kubenetes-Nginx-Deployer",
     project_urls={
